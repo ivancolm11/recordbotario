@@ -1,10 +1,10 @@
 # models.py
+import os 
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import os # Necesario para leer las variables de entorno
 
 Base = declarative_base()
 
@@ -40,25 +40,27 @@ class RegistroPeso(Base):
     def __repr__(self):
         return f"<Peso {self.mes}: inicio={self.peso_inicio}, final={self.peso_final}>"
 
-# --- Inicialización de la base de datos para Azure SQL ---
-# Carga las credenciales desde las variables de entorno (Azure App Service Configuration)
-db_user = os.getenv('AZURE_SQL_USER', 'waterbot-server-admin')
-db_pass = os.getenv('AZURE_SQL_PASSWORD', 'KOKv54$hOz4$l2rW')
-db_server = os.getenv('AZURE_SQL_SERVER', 'waterbot-server.database.windows.net')
-db_port = os.getenv('AZURE_SQL_PORT', '1433')
-db_name = os.getenv('AZURE_SQL_DATABASE', 'waterbot-database')
+# --- Inicialización de la base de datos (CORREGIDO PARA AZURE SQL) ---
 
-# Cadena de conexión usando el driver mssql+pyodbc.
-# IMPORTANTE: El driver 'ODBC Driver 17 for SQL Server' debe estar disponible en el entorno de Azure.
-DATABASE_URL = (
-    f"mssql+pyodbc://{db_user}:{db_pass}@{db_server}:"
-    f"{db_port}/{db_name}?driver=ODBC+Driver+17+for+SQL+Server"
-)
+# 1. Recuperar credenciales de las variables de entorno de Azure
+SERVER = os.getenv("AZURE_SQL_SERVER")
+DATABASE = os.getenv("AZURE_SQL_DATABASE")
+USERNAME = os.getenv("AZURE_SQL_USER")
+PASSWORD = os.getenv("AZURE_SQL_PASSWORD")
 
-# Crear el motor de la base de datos
-engine = create_engine(DATABASE_URL, echo=False)
-# Crea las tablas en Azure SQL si no existen
-Base.metadata.create_all(engine)
+# Driver necesario para Linux en Azure
+DRIVER = '{ODBC Driver 17 for SQL Server}' 
+
+# 2. Construir la cadena de conexión para SQLAlchemy + pyodbc
+# Nota: La sintaxis de SQLAlchemy para pyodbc requiere que la cadena de conexión se pase como parámetro a la URL.
+connection_string = f"DRIVER={DRIVER};SERVER=tcp:{SERVER},1433;DATABASE={DATABASE};UID={USERNAME};PWD={PASSWORD}"
+
+# URL final de SQLAlchemy
+AZURE_SQL_URL = f"mssql+pyodbc:///?odbc_connect={connection_string}"
+
+# Usar el nuevo motor de Azure SQL
+engine = create_engine(AZURE_SQL_URL, echo=False)
+Base.metadata.create_all(engine) # Esto CREARÁ tus tablas en Azure SQL si no existen
 
 Session = sessionmaker(bind=engine)
 session = Session()
