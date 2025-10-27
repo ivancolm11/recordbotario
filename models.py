@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote_plus # <--- Importación clave para manejar caracteres especiales
+from urllib.parse import quote_plus # <--- Importación clave para manejar la contraseña
 
 Base = declarative_base()
 
@@ -41,27 +41,28 @@ class RegistroPeso(Base):
     def __repr__(self):
         return f"<Peso {self.mes}: inicio={self.peso_inicio}, final={self.peso_final}>"
 
-# --- Inicialización de la base de datos (CORREGIDO PARA CODIFICACIÓN DE CONTRASEÑA) ---
+# --- Inicialización de la base de datos (CORREGIDO PARA AZURE SQL) ---
 
 # 1. Recuperar credenciales de las variables de entorno de Azure
 SERVER = os.getenv("AZURE_SQL_SERVER")
 DATABASE = os.getenv("AZURE_SQL_DATABASE")
 USERNAME = os.getenv("AZURE_SQL_USER")
-# **Codificamos la contraseña usando quote_plus para manejar el símbolo '$'**
+# Codificamos la contraseña para manejar caracteres especiales como $ o !
 PASSWORD = quote_plus(os.getenv("AZURE_SQL_PASSWORD")) 
-PORT = os.getenv("AZURE_SQL_PORT", "1433")
+PORT = os.getenv("AZURE_SQL_PORT", "1433") 
 
-# Driver necesario para Linux en Azure App Service
-DRIVER = '{ODBC Driver 17 for SQL Server}' 
+# El driver se pasa como un parámetro de la URL de SQLAlchemy
+DRIVER_NAME = 'ODBC Driver 17 for SQL Server' 
 
-# 2. Construir la cadena de conexión optimizada para pyodbc
-# La contraseña ya está codificada y se pasa directamente a la URL.
+# 2. Construir la URL de SQLAlchemy para mssql+pyodbc
+# Esta sintaxis es la estándar para SQLAlchemy/pyodbc:
 connection_string = (
     f"mssql+pyodbc://{USERNAME}:{PASSWORD}@{SERVER}:{PORT}/{DATABASE}"
-    f"?driver={DRIVER}"
+    f"?driver={DRIVER_NAME}"
 )
 
 # Crear el motor de la base de datos
+# La conexión fallará aquí si las credenciales son incorrectas o el firewall está cerrado
 engine = create_engine(connection_string, echo=False)
 Base.metadata.create_all(engine) # Esto creará las tablas si la conexión es exitosa
 
