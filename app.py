@@ -1,20 +1,25 @@
+import sys
+import os
+# Agrega el directorio actual a sys.path para asegurar que models.py se encuentre
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 from models import session, RegistroAgua, RegistroComida
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, date
 from twilio.rest import Client
-import os # <-- AÑADIDO PARA LEER VARIABLES DE ENTORNO
+import os 
 
 # --- Configuración Flask ---
 app = Flask(__name__)
     
-# --- Configuración Twilio (AHORA USANDO os.getenv) ---
-# Si no encuentra la variable de entorno, usa el valor por defecto (hardcodeado)
-ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "US1b134915fea6719939fc5177aae14b7c") 
-AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "b81db3991b21a02814cc6c7b6b8a9fca") 
-FROM_WHATSAPP = os.getenv("TWILIO_FROM_WHATSAPP", "whatsapp:+14155238886") 
-TO_WHATSAPP = os.getenv("TWILIO_TO_WHATSAPP", "whatsapp:+5491127170193") 
+# --- Configuración Twilio (Usando Variables de Entorno para Azure) ---
+# Si no encuentra las variables de entorno en Azure, usa los valores por defecto.
+ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "US1b134915fea6719939fc5177aae14b7c")
+AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "b81db3991b21a02814cc6c7b6b8a9fca")
+FROM_WHATSAPP = os.getenv("TWILIO_FROM_WHATSAPP", "whatsapp:+14155238886")
+TO_WHATSAPP = os.getenv("TWILIO_TO_WHATSAPP", "whatsapp:+5491127170193")
 
 twilio_client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
@@ -27,11 +32,11 @@ def enviar_mensaje(texto):
     )
 
 def recordar_agua():
-    enviar_mensaje(" ¿Tomaste agua en esta última hora? Decime cuántos ml si ya lo hiciste.")
+    enviar_mensaje("¿Tomaste agua en esta última hora? Decime cuántos ml si ya lo hiciste.")
 
 def preguntar_comida():
     hora = datetime.now().strftime("%H:%M")
-    enviar_mensaje(f" Son las {hora}. ¿Qué comiste y cuántas calorías aprox? (ej: 'Comí pasta, 650 cal')")
+    enviar_mensaje(f"Son las {hora}. ¿Qué comiste y cuántas calorías aprox? (ej: 'Comí pasta, 650 cal')")
 
 def resumen_diario():
     hoy = date.today()
@@ -44,14 +49,14 @@ def resumen_diario():
     total_cal = sum(c.calorias for c in comidas)
 
     resumen = (
-        f" Resumen diario ({hoy.strftime('%d/%m/%Y')}):\n"
+        f"Resumen diario ({hoy.strftime('%d/%m/%Y')}):\n"
         f"- Agua total: {agua_total:.0f} ml\n"
         f"- Comidas registradas: {len(comidas)}\n"
         f"- Calorías totales: {total_cal:.0f} kcal\n"
     )
 
     if comidas:
-        resumen += "\n Detalle comidas:\n"
+        resumen += "\nDetalle comidas:\n"
         for c in comidas:
             hora_comida = c.fecha.strftime("%H:%M")
             resumen += f"- {hora_comida}: {c.descripcion} ({c.calorias} kcal)\n"
@@ -96,7 +101,7 @@ def generar_resumen():
     comidas = session.query(RegistroComida).all()
     total_cal = sum(c.calorias for c in comidas)
     resumen = (
-        f" Resumen general:\n"
+        f"Resumen general:\n"
         f"- Agua total: {agua_total:.0f} ml\n"
         f"- Comidas registradas: {len(comidas)}\n"
         f"- Calorías totales: {total_cal:.0f} kcal"
@@ -117,9 +122,9 @@ def whatsapp_webhook():
             registro = RegistroAgua(cantidad_ml=cantidad)
             session.add(registro)
             session.commit()
-            msg.body(f" Registré {cantidad} ml de agua. ¡Bien hecho!")
+            msg.body(f"Registré {cantidad} ml de agua. ¡Bien hecho!")
         else:
-            msg.body(" Decime cuánta agua tomaste (ejemplo: 'Tomé 500 ml de agua').")
+            msg.body("Decime cuánta agua tomaste (ejemplo: 'Tomé 500 ml de agua').")
 
     # Registrar comida
     elif "comí" in incoming_msg or "comida" in incoming_msg:
@@ -128,9 +133,9 @@ def whatsapp_webhook():
             registro = RegistroComida(descripcion=descripcion, calorias=calorias)
             session.add(registro)
             session.commit()
-            msg.body(f" Registré '{descripcion}' con {calorias} calorías.")
+            msg.body(f"Registré '{descripcion}' con {calorias} calorías.")
         else:
-            msg.body(" Decime qué comiste y cuántas calorías aprox. (ej: 'Comí pasta, 650 cal').")
+            msg.body("Decime qué comiste y cuántas calorías aprox. (ej: 'Comí pasta, 650 cal').")
 
     # Consultar agua del día
     elif "agua hoy" in incoming_msg:
@@ -138,7 +143,7 @@ def whatsapp_webhook():
         agua_total = sum(a.cantidad_ml for a in session.query(RegistroAgua)
                          .filter(RegistroAgua.fecha >= datetime.combine(hoy, datetime.min.time()))
                          .all())
-        msg.body(f" Agua consumida hoy: {agua_total:.0f} ml")
+        msg.body(f"Agua consumida hoy: {agua_total:.0f} ml")
 
     # Consultar comidas del día
     elif "comidas hoy" in incoming_msg:
@@ -147,15 +152,15 @@ def whatsapp_webhook():
                          .filter(RegistroComida.fecha >= datetime.combine(hoy, datetime.min.time()))\
                          .all()
         if comidas:
-            texto = f" Comidas de hoy ({hoy.strftime('%d/%m/%Y')}):\n"
+            texto = f"Comidas de hoy ({hoy.strftime('%d/%m/%Y')}):\n"
             total_cal = 0
             for c in comidas:
                 hora_comida = c.fecha.strftime("%H:%M")
                 texto += f"- {hora_comida}: {c.descripcion} ({c.calorias} kcal)\n"
                 total_cal += c.calorias
-            texto += f" Calorías totales hoy: {total_cal:.0f} kcal"
+            texto += f"Calorías totales hoy: {total_cal:.0f} kcal"
         else:
-            texto = " No registraste comidas hoy."
+            texto = "No registraste comidas hoy."
         msg.body(texto)
 
     # Resumen general
@@ -165,7 +170,7 @@ def whatsapp_webhook():
 
     # Mensaje por defecto
     else:
-        msg.body("👋 Hola! Puedo registrar agua o comidas.\n"
+        msg.body("Hola! Puedo registrar agua o comidas.\n"
                  "- 'Tomé 500 ml de agua'\n"
                  "- 'Comí pasta, 650 cal'\n"
                  "- 'Agua hoy' para ver lo que tomaste hoy\n"
