@@ -5,6 +5,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from urllib.parse import quote_plus # <--- Importación clave para manejar caracteres especiales
 
 Base = declarative_base()
 
@@ -40,27 +41,29 @@ class RegistroPeso(Base):
     def __repr__(self):
         return f"<Peso {self.mes}: inicio={self.peso_inicio}, final={self.peso_final}>"
 
-# --- Inicialización de la base de datos (CORREGIDO PARA AZURE SQL) ---
+# --- Inicialización de la base de datos (CORREGIDO PARA CODIFICACIÓN DE CONTRASEÑA) ---
 
 # 1. Recuperar credenciales de las variables de entorno de Azure
 SERVER = os.getenv("AZURE_SQL_SERVER")
 DATABASE = os.getenv("AZURE_SQL_DATABASE")
 USERNAME = os.getenv("AZURE_SQL_USER")
-PASSWORD = os.getenv("AZURE_SQL_PASSWORD")
+# **Codificamos la contraseña usando quote_plus para manejar el símbolo '$'**
+PASSWORD = quote_plus(os.getenv("AZURE_SQL_PASSWORD")) 
+PORT = os.getenv("AZURE_SQL_PORT", "1433")
 
-# Driver necesario para Linux en Azure
+# Driver necesario para Linux en Azure App Service
 DRIVER = '{ODBC Driver 17 for SQL Server}' 
 
-# 2. Construir la cadena de conexión para SQLAlchemy + pyodbc
-# Nota: La sintaxis de SQLAlchemy para pyodbc requiere que la cadena de conexión se pase como parámetro a la URL.
-connection_string = f"DRIVER={DRIVER};SERVER=tcp:{SERVER},1433;DATABASE={DATABASE};UID={USERNAME};PWD={PASSWORD}"
+# 2. Construir la cadena de conexión optimizada para pyodbc
+# La contraseña ya está codificada y se pasa directamente a la URL.
+connection_string = (
+    f"mssql+pyodbc://{USERNAME}:{PASSWORD}@{SERVER}:{PORT}/{DATABASE}"
+    f"?driver={DRIVER}"
+)
 
-# URL final de SQLAlchemy
-AZURE_SQL_URL = f"mssql+pyodbc:///?odbc_connect={connection_string}"
-
-# Usar el nuevo motor de Azure SQL
-engine = create_engine(AZURE_SQL_URL, echo=False)
-Base.metadata.create_all(engine) # Esto CREARÁ tus tablas en Azure SQL si no existen
+# Crear el motor de la base de datos
+engine = create_engine(connection_string, echo=False)
+Base.metadata.create_all(engine) # Esto creará las tablas si la conexión es exitosa
 
 Session = sessionmaker(bind=engine)
 session = Session()
