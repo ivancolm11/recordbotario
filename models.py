@@ -5,8 +5,8 @@ from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote_plus # Importación clave para manejar la contraseña con caracteres especiales
-from typing import Optional, Any # Importación para typing si es necesario, pero mantenemos simple
+from urllib.parse import quote_plus
+from typing import Optional, Any
 
 Base = declarative_base()
 
@@ -42,19 +42,19 @@ class RegistroPeso(Base):
     def __repr__(self):
         return f"<Peso {self.mes}: inicio={self.peso_inicio}, final={self.peso_final}>"
 
-# --- Inicialización de la base de datos (CON DIAGNÓSTICO DE FALLO) ---
+# --- Inicialización de la base de datos (TEMPORALMENTE DESACTIVADA) ---
 
 # 1. Recuperar credenciales de las variables de entorno de Azure
 SERVER = os.getenv("AZURE_SQL_SERVER")
 DATABASE = os.getenv("AZURE_SQL_DATABASE")
 USERNAME = os.getenv("AZURE_SQL_USER")
-# Codificamos la contraseña para manejar caracteres especiales
+# Codificamos la contraseña (se mantiene por si necesitamos reactivar el código)
 PASSWORD = quote_plus(os.getenv("AZURE_SQL_PASSWORD", "")) 
 PORT = os.getenv("AZURE_SQL_PORT", "1433") 
 
 DRIVER_NAME = 'ODBC Driver 17 for SQL Server' 
 
-# 2. Construir la URL de SQLAlchemy para mssql+pyodbc
+# 2. Construir la URL de SQLAlchemy
 connection_string = (
     f"mssql+pyodbc://{USERNAME}:{PASSWORD}@{SERVER}:{PORT}/{DATABASE}"
     f"?driver={DRIVER_NAME}"
@@ -64,28 +64,25 @@ connection_string = (
 engine: Any = None
 session: Any = None
 
-# --- Bloque try/except para capturar el error de Login ---
+# --- Bloque try/except para saltar la conexión y cargar Flask ---
 try:
-    # 3. Crear el motor de la base de datos
-    engine = create_engine(connection_string, echo=False)
+    # 3. CREACIÓN DEL MOTOR Y TABLAS DESACTIVADA TEMPORALMENTE
+    # engine = create_engine(connection_string, echo=False)
+    # Base.metadata.create_all(engine)
     
-    # Intenta crear las tablas. Si la conexión falla, el error se captura aquí.
-    Base.metadata.create_all(engine)
-    
-    Session = sessionmaker(bind=engine)
+    # Creamos una sesión DUMMY para que la aplicación Flask pueda cargar sin DB
+    Session = sessionmaker() 
     session = Session()
-    print("✅ SQL CONNECTION SUCCESSFUL: Database tables created/verified.")
+    print("✅ SQL CONNECTION SKIPPED: App should now start and respond to webhooks.")
 
 except Exception as e:
-    # Si la conexión falla (Login failed), se imprime un mensaje claro en el Log Stream
+    # Esto ya no debería ejecutarse al inicio, pero se mantiene el bloque
     print("🛑 SQL CONNECTION FAILED AT STARTUP!")
     print(f"Error Type: {type(e).__name__}")
     print(f"Error Message: {e}")
     
-    # Imprimimos la URL de conexión sin la contraseña para depuración
     safe_connection_string = f"mssql+pyodbc://{USERNAME}:***PASSWORD_HIDDEN***@{SERVER}:{PORT}/{DATABASE}?driver={DRIVER_NAME}"
     print(f"Failing URL (Check USERNAME, SERVER, and DATABASE): {safe_connection_string}")
     
-    # Crea una sesión Dummy para que el resto de la aplicación Flask pueda cargar
     Session = sessionmaker() 
     session = Session()
